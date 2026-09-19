@@ -2668,6 +2668,66 @@
       btn.disabled = false;
     }
   };
+  // Экспорт функций для cloud-модуля (нужно для открытия из облака)
+  window.__emrRenderTree = renderTree;
+  window.__emrRenderInspector = renderInspector;
+  window.__emrShowInfo = (t, h) => Editor._showInfo(t, h);
+
+  window.__emrImportSnapshot = function(result) {
+    if (State.flyMode && typeof exitFlyMode === 'function') exitFlyMode();
+
+    // Чистим сцену
+    State.objects.forEach(o => {
+      scene.remove(o.mesh);
+      o.mesh.geometry.dispose();
+      o.mesh.material.dispose();
+    });
+    State.objects = [];
+    State.selectedId = null;
+    State.selectedIds = [];
+
+    for (const id in colliders) {
+      colliderGroup.remove(colliders[id]);
+      colliders[id].geometry.dispose();
+      colliders[id].material.dispose();
+      delete colliders[id];
+    }
+    tControls.detach();
+
+    // Мета проекта
+    if (result.project) Object.assign(State.project, result.project);
+
+    // Восстанавливаем объекты
+    console.log('[IMPORT] restoring ' + (result.objects || []).length + ' objects');
+    for (const o of (result.objects || [])) {
+      createObject(o.type, {
+        name: o.name, pos: o.pos, rot: o.rot, scale: o.scale,
+        color: o.color, physics: o.physics, collider: o.collider,
+        parts: o.parts, bboxSize: o.bboxSize,
+        grabbable: o.grabbable, grabDist: o.grabDist,
+        runtime: o.runtime, isModel: o.isModel, modelPath: o.modelPath
+      });
+    }
+
+    // Блоки
+    if (window.workspace) {
+      window.workspace.clear();
+      try {
+        Blockly.serialization.workspaces.load(
+          result.blocksState || { languageVersion: 0, blocks: [] },
+          window.workspace
+        );
+      } catch(e) { console.warn('blocks load failed', e); }
+    }
+
+    refreshObjDropdowns();
+    renderTree();
+    renderInspector();
+    applyFloorY();
+
+    console.log('[IMPORT] done. Total objects: ' + State.objects.length);
+  };
+
   window.Editor._real = Editor;
   window.__emrReady = true;
   setStatus('готов', 'ready');
