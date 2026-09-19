@@ -622,7 +622,6 @@
   let tControls = null;
   try {
     tControls = new TransformControls(camera, renderer.domElement);
-    tControls.size = 0.1;
     tControls.addEventListener('dragging-changed', e => {
       orbit.enabled = !e.value && !State.flyMode;
       if (e.value) beginTransform(); else endTransform();
