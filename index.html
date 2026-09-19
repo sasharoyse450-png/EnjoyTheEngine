@@ -161,6 +161,7 @@
     <button onclick="Editor.showCode()">Код</button>
     <button onclick="Editor.importEmrd()">⬆ Импорт</button>
     <button class="primary" onclick="Editor.exportZip()">⬇ Экспорт</button>
+<button onclick="Editor.openPrefabs()" style="background:#1f5a4a;color:#cfe">🧩 Префабы</button>
     <button id="userBtn" title="Аккаунт">?</button>
   </div>
 
@@ -299,6 +300,24 @@
   </div>
 </div>
 
+<div id="prefabModal" class="modal-back" style="display:none">
+  <div class="modal" style="max-width:760px;width:94%;max-height:85vh;display:flex;flex-direction:column">
+    <h3 style="display:flex;align-items:center;gap:8px">
+      🧩 Префабы
+      <span style="flex:1"></span>
+      <button class="sec" id="prefabSave" style="font-size:11px;margin:0;background:#2a6a3a;color:#fff">💾 Сохранить выделенные</button>
+      <button class="sec" id="prefabReload" style="font-size:11px;margin:0">↻</button>
+    </h3>
+    <div style="display:flex;gap:6px;margin:8px 0">
+      <button class="sec" data-tab="public" id="prefabTabPublic" style="font-size:11px;background:#2a6a3a;color:#fff">🌍 Публичные</button>
+      <button class="sec" data-tab="mine" id="prefabTabMine" style="font-size:11px">👤 Мои</button>
+    </div>
+    <div id="prefabList" style="flex:1;overflow:auto;margin:8px -20px 0;border-top:1px solid var(--border)"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+      <button id="prefabClose" class="sec">Закрыть</button>
+    </div>
+  </div>
+</div>
 <div id="adminModal" class="modal-back" style="display:none">
   <div class="modal" style="max-width:720px;width:94%;max-height:82vh;display:flex;flex-direction:column">
     <h3 style="display:flex;align-items:center;gap:8px">
@@ -2260,6 +2279,10 @@
       setTimeout(() => Templates[name] && Templates[name](), 100);
     },
     openCustomBlocks: function() { showCustomBlocksModal(); },
+    openPrefabs: function() {
+      if (!window.__emrPrefabs) { alert('Supabase не подключён'); return; }
+      window.__emrPrefabs.open();
+    },
     openAI: function() {
       if (window.__emrIsAdmin !== true) {
         alert('AI-генерация доступна только администратору.');
@@ -2806,6 +2829,10 @@
       umButtons.appendChild(mkBtn('💾', 'Сохранить игру', 'primary', () => { userMenu.style.display = 'none'; saveGame(); }));
       umButtons.appendChild(mkBtn('🎮', 'Мои игры', '', () => { userMenu.style.display = 'none'; gamesModal.style.display = 'flex'; loadGames(); }));
       umButtons.appendChild(mkBtn('👤', 'Аккаунт', '', () => { userMenu.style.display = 'none'; showInfo('Аккаунт', 'Email: <code>' + escapeHtml(email) + '</code><br>ID: <code>' + currentUser.id + '</code>'); }));
+      umButtons.appendChild(mkBtn('⏱', 'Автосохранение: ' + (isAutosaveEnabled() ? 'ВКЛ' : 'выкл'), '', () => {
+        setAutosaveEnabled(!isAutosaveEnabled());
+        renderUserMenu();
+      }));
       if (window.__emrIsAdmin === true) {
         umButtons.appendChild(mkBtn('⚙', 'Админка', '', () => {
           userMenu.style.display = 'none';
@@ -2819,6 +2846,11 @@
       umButtons.appendChild(mkBtn('👤', 'Войти', 'primary', () => { userMenu.style.display = 'none'; showAuth(); }));
       umButtons.appendChild(mkBtn('📝', 'Регистрация', '', () => { userMenu.style.display = 'none'; setAuthMode(true); authModal.style.display = 'flex'; }));
     }
+  }
+  function updateAutosaveButton() {
+    // Если меню открыто — перерисуем
+    const um = document.getElementById('userMenu');
+    if (um && um.style.display === 'flex') renderUserMenu();
   }
   function updateAuthUI(user) { currentUser = user; renderUserBtn(); if (userMenu.style.display === 'flex') renderUserMenu(); if (!user && gamesModal.style.display === 'flex') gamesModal.style.display = 'none'; }
   userBtn.onclick = () => { renderUserMenu(); userMenu.style.display = 'flex'; };
@@ -2958,9 +2990,20 @@
   }
 
   // ============ АВТОСОХРАНЕНИЕ ============
-  const AUTOSAVE_MS = 30000;
+  const AUTOSAVE_MS = 30000; // 30 сек
+  const AUTOSAVE_KEY = 'emr_autosave_enabled';
   let autosaveTimer = null;
   let lastSavedAt = 0;
+
+  function isAutosaveEnabled() {
+    try { return localStorage.getItem(AUTOSAVE_KEY) === '1'; } catch(e){ return false; }
+  }
+  function setAutosaveEnabled(v) {
+    try { localStorage.setItem(AUTOSAVE_KEY, v ? '1' : '0'); } catch(e){}
+    if (v) startAutosave();
+    else stopAutosave();
+    updateAutosaveButton();
+  }
 
   function getCurrentProjectId() {
     try { return localStorage.getItem('emr_current_project_id') || null; } catch(e){ return null; }
@@ -2989,6 +3032,7 @@
   }
 
   async function autosaveNow() {
+    if (!isAutosaveEnabled()) return;
     if (!currentUser) return;
     const pid = getCurrentProjectId();
     if (!pid) return;
@@ -3084,6 +3128,154 @@
   document.getElementById('adminReload').onclick = () => loadAdminUsers();
   document.getElementById('adminModal').onclick = e => { if (e.target === document.getElementById('adminModal')) document.getElementById('adminModal').style.display = 'none'; };
 
+  // ============ ПРЕФАБЫ ============
+  let prefabTab = 'public';
+
+  async function loadPrefabs() {
+    const list = document.getElementById('prefabList');
+    list.innerHTML = '<div style="color:#888;padding:20px;text-align:center">Загрузка…</div>';
+
+    let q = sb.from('prefabs').select('id,name,description,data,downloads,is_public,user_id,created_at');
+    if (prefabTab === 'public') q = q.eq('is_public', true).order('downloads', { ascending: false }).limit(100);
+    else {
+      if (!currentUser) { list.innerHTML = '<div style="color:#888;padding:20px;text-align:center">Войди, чтобы увидеть свои префабы</div>'; return; }
+      q = q.eq('user_id', currentUser.id).order('created_at', { ascending: false });
+    }
+
+    const { data, error } = await q;
+    if (error) { list.innerHTML = '<div style="color:#f88;padding:20px">Ошибка: ' + escapeHtml(error.message) + '</div>'; return; }
+    if (!data || !data.length) {
+      list.innerHTML = '<div style="color:#888;padding:30px;text-align:center">' +
+        (prefabTab === 'public' ? 'Публичных префабов пока нет' : 'У тебя ещё нет префабов. Выдели объекты и нажми «Сохранить выделенные».') + '</div>';
+      return;
+    }
+
+    list.innerHTML = '';
+    for (const p of data) {
+      const row = document.createElement('div');
+      row.className = 'g-row';
+      const count = Array.isArray(p.data) ? p.data.length : 0;
+
+      const meta = document.createElement('div');
+      meta.className = 'g-meta';
+      meta.innerHTML =
+        '<div class="g-name">' + escapeHtml(p.name) + (p.is_public ? ' <span style="color:#8fd;font-size:10px">🌍</span>' : ' <span style="color:#888;font-size:10px">🔒</span>') + '</div>' +
+        '<div class="g-id">' + count + ' объ · ↓' + (p.downloads || 0) + (p.description ? ' · ' + escapeHtml(p.description.slice(0, 40)) : '') + '</div>';
+      row.appendChild(meta);
+
+      const mkB = (txt, cls, fn) => { const b = document.createElement('button'); b.className = 'g-btn ' + cls; b.textContent = txt; b.onclick = fn; return b; };
+
+      row.appendChild(mkB('Вставить', 'open', () => insertPrefab(p)));
+
+      const isMine = currentUser && p.user_id === currentUser.id;
+      const canDel = isMine || window.__emrIsAdmin === true;
+      if (canDel) {
+        row.appendChild(mkB('Удалить', 'del', async () => {
+          if (!confirm('Удалить префаб «' + p.name + '»?')) return;
+          const { error: e } = await sb.from('prefabs').delete().eq('id', p.id);
+          if (e) { alert('Ошибка: ' + e.message); return; }
+          loadPrefabs();
+        }));
+      }
+      list.appendChild(row);
+    }
+  }
+
+  function insertPrefab(p) {
+    if (!Array.isArray(p.data) || !p.data.length) { alert('Префаб пустой'); return; }
+    let cx = 0, cy = 0, cz = 0;
+    for (const o of p.data) { cx += o.pos.x; cy += o.pos.y; cz += o.pos.z; }
+    cx /= p.data.length; cy /= p.data.length; cz /= p.data.length;
+
+    const targetX = 0, targetY = 1, targetZ = 2;
+    const used = new Set(State.objects.map(o => o.name));
+    let added = 0;
+    for (const o of p.data) {
+      let name = String(o.name || 'prefab');
+      while (used.has(name)) name = name + '_';
+      used.add(name);
+      const created = window.__emrCreateObject(o.type, {
+        name: name,
+        pos: { x: targetX + (o.pos.x - cx), y: targetY + (o.pos.y - cy), z: targetZ + (o.pos.z - cz) },
+        rot: o.rot, scale: o.scale, color: o.color,
+        physics: o.physics, collider: o.collider, parts: o.parts, bboxSize: o.bboxSize
+      });
+      if (created) added++;
+    }
+    sb.from('prefabs').update({ downloads: (p.downloads || 0) + 1 }).eq('id', p.id).then(() => {});
+    if (window.__emrRenderTree) window.__emrRenderTree();
+    if (window.__emrRenderInspector) window.__emrRenderInspector();
+    alert('✅ Вставлено объектов: ' + added + '\nОни появились перед тобой в редакторе.');
+  }
+
+  async function savePrefab() {
+    if (!currentUser) { alert('Войди, чтобы сохранять префабы'); return; }
+    if (!State.selectedIds.length) { alert('Выдели объекты (Ctrl+клик для группы)'); return; }
+    const objs = State.selectedIds.map(id => State.objects.find(o => o.id === id)).filter(Boolean);
+    if (!objs.length) return;
+
+    const name = prompt('Название префаба:', 'Мой префаб');
+    if (!name) return;
+    const desc = prompt('Описание (необязательно):', '') || '';
+    const isPublic = confirm('Сделать публичным?\n\nОК — увидят все пользователи\nОтмена — только ты');
+    const slug = name.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 24) || 'prefab';
+
+    const data = objs.map(o => ({
+      type: o.type,
+      name: o.name,
+      pos: { x: o.pos.x, y: o.pos.y, z: o.pos.z },
+      rot: { x: o.rot.x, y: o.rot.y, z: o.rot.z },
+      scale: { x: o.scale.x, y: o.scale.y, z: o.scale.z },
+      color: { r: o.color.r, g: o.color.g, b: o.color.b, a: o.color.a },
+      physics: JSON.parse(JSON.stringify(o.physics)),
+      collider: JSON.parse(JSON.stringify(o.collider)),
+      parts: o.parts ? JSON.parse(JSON.stringify(o.parts)) : undefined,
+      bboxSize: o.bboxSize ? JSON.parse(JSON.stringify(o.bboxSize)) : undefined
+    }));
+
+    const { error } = await sb.from('prefabs').insert({
+      user_id: currentUser.id,
+      name: name,
+      description: desc,
+      data: data,
+      is_public: isPublic
+    });
+    if (error) { alert('Ошибка: ' + error.message); return; }
+    prefabTab = isPublic ? 'public' : 'mine';
+    document.getElementById('prefabTabPublic').style.background = isPublic ? '#2a6a3a' : '';
+    document.getElementById('prefabTabMine').style.background = isPublic ? '' : '#2a6a3a';
+    loadPrefabs();
+  }
+
+  window.__emrPrefabs = {
+    open: function() {
+      document.getElementById('prefabModal').style.display = 'flex';
+      loadPrefabs();
+    }
+  };
+
+  document.getElementById('prefabClose').onclick = () => document.getElementById('prefabModal').style.display = 'none';
+  document.getElementById('prefabReload').onclick = () => loadPrefabs();
+  document.getElementById('prefabSave').onclick = () => savePrefab();
+  document.getElementById('prefabModal').onclick = e => { if (e.target === document.getElementById('prefabModal')) document.getElementById('prefabModal').style.display = 'none'; };
+
+  document.getElementById('prefabTabPublic').onclick = () => {
+    prefabTab = 'public';
+    document.getElementById('prefabTabPublic').style.background = '#2a6a3a';
+    document.getElementById('prefabTabPublic').style.color = '#fff';
+    document.getElementById('prefabTabMine').style.background = '';
+    document.getElementById('prefabTabMine').style.color = '';
+    loadPrefabs();
+  };
+  document.getElementById('prefabTabMine').onclick = () => {
+    prefabTab = 'mine';
+    document.getElementById('prefabTabMine').style.background = '#2a6a3a';
+    document.getElementById('prefabTabMine').style.color = '#fff';
+    document.getElementById('prefabTabPublic').style.background = '';
+    document.getElementById('prefabTabPublic').style.color = '';
+    loadPrefabs();
+  };
+
   const { data: { session } } = await sb.auth.getSession();
   updateAuthUI(session ? session.user : null);
   await checkAdmin(session ? session.user : null);
@@ -3091,11 +3283,17 @@
   sb.auth.onAuthStateChange(async (event, session) => {
     updateAuthUI(session ? session.user : null);
     await checkAdmin(session ? session.user : null);
-    if (session && session.user) startAutosave();
-    else { stopAutosave(); setCurrentProjectId(null); }
+    if (session && session.user) {
+      if (isAutosaveEnabled()) startAutosave();
+    } else {
+      stopAutosave();
+      setCurrentProjectId(null);
+    }
   });
 
-  if (session && session.user) startAutosave();
+  // Стартуем если уже залогинен И автосейв включён
+  if (session && session.user && isAutosaveEnabled()) startAutosave();
+  updateAutosaveButton();
 
   window.addEventListener('beforeunload', () => {
     if (!currentUser || !getCurrentProjectId()) return;
