@@ -2855,28 +2855,49 @@
     const { data, error } = await sb.from('projects').select('id,name,app_id,updated_at').order('updated_at', { ascending: false });
     if (error) { gamesList.innerHTML = '<div style="color:#f88;padding:20px">Ошибка: ' + escapeHtml(error.message) + '</div>'; return; }
     if (!data.length) { gamesList.innerHTML = '<div style="color:#888;padding:30px;text-align:center">Пока нет игр.</div>'; return; }
+
+    const currentPid = getCurrentProjectId();
     gamesList.innerHTML = '';
     for (const p of data) {
       const row = document.createElement('div'); row.className = 'g-row';
-      row.innerHTML = '<div class="g-meta"><div class="g-name">' + escapeHtml(p.name) + '</div><div class="g-id">' + escapeHtml(p.app_id || '') + '</div></div><div class="g-date">' + new Date(p.updated_at).toLocaleDateString() + '</div>';
+
+      const isCurrent = currentPid === p.id;
+      const meta = document.createElement('div'); meta.className = 'g-meta';
+      meta.innerHTML =
+        '<div class="g-name">' + escapeHtml(p.name) + (isCurrent ? ' <span style="color:#7fe38a;font-size:10px">● открыт</span>' : '') + '</div>' +
+        '<div class="g-id">' + p.id.slice(0, 8) + '… · ' + new Date(p.updated_at).toLocaleString() + '</div>';
+      row.appendChild(meta);
+
       const mkB = (txt, cls, fn) => { const b = document.createElement('button'); b.className = 'g-btn ' + cls; b.textContent = txt; b.onclick = fn; return b; };
+
       row.appendChild(mkB('Открыть', 'open', async () => {
         const { data: full, error } = await sb.from('projects').select('data').eq('id', p.id).single();
         if (error) { alert('Не удалось: ' + error.message); return; }
+        console.log('[OPEN] id=' + p.id + ', objects=' + (full.data && full.data.objects ? full.data.objects.length : 0) + ', blocks=' + (full.data && full.data.blocks && full.data.blocks.blocks ? full.data.blocks.blocks.length : 0));
+
         restoreProject(full.data);
         setCurrentProjectId(p.id);
         lastSavedAt = Date.now();
-        showToast('📂 Открыто: ' + p.name);
+
+        setTimeout(loadGames, 100);
         gamesModal.style.display = 'none';
       }));
+
       row.appendChild(mkB('Копия', 'copy', async () => {
         const { data: full, error } = await sb.from('projects').select('data').eq('id', p.id).single();
         if (error) { alert('Не удалось: ' + error.message); return; }
         const { error: insErr } = await sb.from('projects').insert({ user_id: currentUser.id, name: p.name + ' (копия)', app_id: p.app_id || 'com.user.myapp', data: full.data });
         if (insErr) alert('Ошибка: ' + insErr.message); else loadGames();
       }));
-      row.appendChild(mkB('Опубликовать', 'pub', () => openPublishDialog(p, sb, currentUser)));
-      row.appendChild(mkB('Удалить', 'del', async () => { if (!confirm('Удалить «' + p.name + '»?')) return; await sb.from('projects').delete().eq('id', p.id); loadGames(); }));
+
+      row.appendChild(mkB('Удалить', 'del', async () => {
+        if (!confirm('Удалить «' + p.name + '»?')) return;
+        const { error } = await sb.from('projects').delete().eq('id', p.id);
+        if (error) { alert('Ошибка: ' + error.message); return; }
+        if (currentPid === p.id) setCurrentProjectId(null);
+        loadGames();
+      }));
+
       gamesList.appendChild(row);
     }
   }
@@ -2886,28 +2907,46 @@
   document.getElementById('gamesNew').onclick = () => { if (State.objects.length && !confirm('Создать новую?')) return; window.Editor.newProject(); gamesModal.style.display = 'none'; };
   async function saveGame() {
     if (!currentUser) { showAuth(); return; }
-    const name = prompt('Название:', State.project.name || 'Моя игра'); if (!name) return;
-    const snap = snapshotProject(); const appId = State.project.id || 'com.user.myapp';
-    const { data: existing } = await sb.from('projects').select('id').eq('app_id', appId).limit(1);
-    if (existing && existing.length) {
-      const upd = confirm('Игра с ID «' + appId + '» уже есть.\n\nОК — обновить\nОтмена — создать новую');
-      if (upd) {
-        const { error } = await sb.from('projects').update({ name, data: snap, updated_at: new Date().toISOString() }).eq('id', existing[0].id);
-        if (!error) { setCurrentProjectId(existing[0].id); lastSavedAt = Date.now(); }
-        if (error) { alert('Ошибка: ' + error.message); return; }
-        showInfo('Обновлено', 'Игра <b>' + escapeHtml(name) + '</b> сохранена.');
+
+    const name = prompt('Название:', State.project.name || 'Моя игра');
+    if (!name) return;
+
+    const snap = snapshotProject();
+    const pid = getCurrentProjectId();
+
+    console.log('[SAVE] start, name=' + name + ', currentPid=' + pid + ', objects=' + (snap.objects ? snap.objects.length : 0) + ', blocks=' + (snap.blocks && snap.blocks.blocks ? snap.blocks.blocks.length : 0));
+
+    if (pid) {
+      const { error, data } = await sb.from('projects')
+        .update({ name: name, data: snap, updated_at: new Date().toISOString() })
+        .eq('id', pid)
+        .select('id');
+
+      if (error) { console.error('[SAVE] update error:', error); alert('Ошибка обновления: ' + error.message); return; }
+      if (!data || !data.length) {
+        console.warn('[SAVE] update вернул 0 строк — проект удалён?');
+        setCurrentProjectId(null);
+        alert('Проект не найден в облаке. Создаю новый…');
       } else {
-        const { data: inserted, error } = await sb.from('projects').insert({ user_id: currentUser.id, name, app_id: appId, data: snap }).select('id').single();
-        if (!error && inserted) { setCurrentProjectId(inserted.id); lastSavedAt = Date.now(); }
-        if (error) { alert('Ошибка: ' + error.message); return; }
-        showInfo('Сохранено', 'Запись <b>' + escapeHtml(name) + '</b> создана.');
+        lastSavedAt = Date.now();
+        console.log('[SAVE] обновлён', pid);
+        showInfo('Обновлено', 'Игра <b>' + escapeHtml(name) + '</b> сохранена.');
+        return;
       }
-    } else {
-      const { data: inserted, error } = await sb.from('projects').insert({ user_id: currentUser.id, name, app_id: appId, data: snap }).select('id').single();
-        if (!error && inserted) { setCurrentProjectId(inserted.id); lastSavedAt = Date.now(); }
-      if (error) { alert('Ошибка: ' + error.message); return; }
-      showInfo('Сохранено', 'Игра <b>' + escapeHtml(name) + '</b> в облаке.');
     }
+
+    const appId = State.project.id || 'com.user.myapp';
+    const { data: inserted, error } = await sb.from('projects')
+      .insert({ user_id: currentUser.id, name: name, app_id: appId, data: snap })
+      .select('id')
+      .single();
+
+    if (error) { console.error('[SAVE] insert error:', error); alert('Ошибка создания: ' + error.message); return; }
+
+    setCurrentProjectId(inserted.id);
+    lastSavedAt = Date.now();
+    console.log('[SAVE] создан', inserted.id);
+    showInfo('Сохранено', 'Игра <b>' + escapeHtml(name) + '</b> в облаке.<br><br><span style="font-size:11px;color:#888">id: ' + inserted.id.slice(0, 8) + '…</span>');
   }
 
   function checkPublicLink(project) {
