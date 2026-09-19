@@ -3348,6 +3348,119 @@ window.addEventListener('keydown', function(e) {
 
 console.log('[KEYBOARD] Патч v2 активен. Проверь консоль: должен быть [KEY] при Ctrl+C.');
 })();
+  <!-- ПАТЧ: рабочее копирование 3D-объектов v2 -->
+<script>
+(function() {
+'use strict';
+
+// Снимаем фокус с Blockly при клике по 3D-canvas
+document.addEventListener('mousedown', function(e) {
+  const canvas = document.querySelector('#viewport canvas');
+  if (canvas && (e.target === canvas || canvas.contains(e.target))) {
+    if (document.activeElement && document.activeElement.blur) {
+      document.activeElement.blur();
+    }
+  }
+}, true);
+
+function getState() { return window.__emrState; }
+
+function snapshot(o) {
+  const s = {
+    name: o.name, type: o.type,
+    pos: { x: o.pos.x, y: o.pos.y, z: o.pos.z },
+    rot: { x: o.rot.x, y: o.rot.y, z: o.rot.z },
+    scale: { x: o.scale.x, y: o.scale.y, z: o.scale.z },
+    color: { r: o.color.r, g: o.color.g, b: o.color.b, a: o.color.a },
+    physics: JSON.parse(JSON.stringify(o.physics || {})),
+    collider: JSON.parse(JSON.stringify(o.collider || {})),
+    grabbable: !!o.grabbable,
+    grabDist: o.grabDist,
+    runtime: !!o.runtime,
+    isModel: !!o.isModel,
+    modelPath: o.modelPath,
+  };
+  if (o.parts) s.parts = JSON.parse(JSON.stringify(o.parts));
+  if (o.bboxSize) s.bboxSize = JSON.parse(JSON.stringify(o.bboxSize));
+  return s;
+}
+
+function uniqueName(base) {
+  const State = getState();
+  if (!State.objects.some(o => o.name === base)) return base;
+  let n = 2;
+  while (State.objects.some(o => o.name === base + n)) n++;
+  return base + n;
+}
+
+function doCopy() {
+  const State = getState();
+  if (!State || !State.selectedIds.length) { console.log('[COPY] нет выделения'); return false; }
+  const objs = State.selectedIds.map(id => State.objects.find(o => o.id === id)).filter(Boolean);
+  if (!objs.length) return false;
+  window.__emrClipboard = objs.map(snapshot);
+  console.log('[COPY]', window.__emrClipboard.length, '→', objs.map(o => o.name).join(', '));
+  return true;
+}
+
+function doPaste() {
+  const State = getState();
+  if (!State || !window.__emrClipboard || !window.__emrClipboard.length) { console.log('[PASTE] буфер пуст'); return false; }
+  const created = [];
+  for (const s of window.__emrClipboard) {
+    const o = window.__emrCreateObject(s.type, {
+      name: uniqueName(s.name),
+      pos: { x: s.pos.x + 0.3, y: s.pos.y, z: s.pos.z + 0.3 },
+      rot: s.rot, scale: s.scale, color: s.color,
+      physics: s.physics, collider: s.collider,
+      parts: s.parts, bboxSize: s.bboxSize,
+      grabbable: s.grabbable, grabDist: s.grabDist,
+      runtime: s.runtime, isModel: s.isModel, modelPath: s.modelPath,
+    });
+    if (o) created.push(o);
+  }
+  if (created.length) {
+    State.selectedIds = created.map(o => o.id);
+    State.selectedId = created[0].id;
+    if (window.__emrRenderTree) window.__emrRenderTree();
+    if (window.__emrRenderInspector) window.__emrRenderInspector();
+  }
+  console.log('[PASTE]', created.length, '→', created.map(o => o.name).join(', '));
+  return created.length > 0;
+}
+
+window.addEventListener('keydown', function(e) {
+  if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+  const tag = e.target && e.target.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+  if (e.target && e.target.isContentEditable) return;
+
+  const k = (e.key || '').toLowerCase();
+  if (k !== 'c' && k !== 'v' && k !== 'd') return;
+
+  const active = document.activeElement;
+  const inBlocks = active && active.closest && active.closest('#blocklyDiv');
+
+  console.log('[KEY] Ctrl+' + k, 'inBlocks:', !!inBlocks, 'active:', active && active.tagName);
+
+  if (inBlocks) return;
+
+  const State = getState();
+  const has3D = State && State.selectedIds && State.selectedIds.length > 0;
+  if (!has3D) { console.log('[KEY] 3D-объект не выделен'); return; }
+
+  if (k === 'c') {
+    if (doCopy()) { e.preventDefault(); e.stopPropagation(); }
+  } else if (k === 'v') {
+    if (doPaste()) { e.preventDefault(); e.stopPropagation(); }
+  } else if (k === 'd') {
+    if (doCopy()) { doPaste(); e.preventDefault(); e.stopPropagation(); }
+  }
+}, true);
+
+console.log('[KEYBOARD] Патч v2 активен.');
+})();
+</script>
 </script>
 </body>
 </html>
