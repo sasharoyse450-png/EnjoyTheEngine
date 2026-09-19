@@ -1662,12 +1662,17 @@
           lines.push('_objs[' + n + '] = EMRAPI.Scene:CreateObject(' + n + ')');
           lines.push('EMRAPI.Scene:SetPosition(_objs[' + n + '], ' + o.pos.x.toFixed(4) + ', ' + o.pos.y.toFixed(4) + ', ' + o.pos.z.toFixed(4) + ')');
           if (o.rot.x || o.rot.y || o.rot.z) lines.push('EMRAPI.Scene:SetRotation(_objs[' + n + '], ' + o.rot.x.toFixed(2) + ', ' + o.rot.y.toFixed(2) + ', ' + o.rot.z.toFixed(2) + ')');
-          if (o.scale.x !== 1 || o.scale.y !== 1 || o.scale.z !== 1 || sceneScale !== 1) lines.push('EMRAPI.Scene:SetScale(_objs[' + n + '], ' + (o.scale.x*sceneScale).toFixed(4) + ', ' + (o.scale.y*sceneScale).toFixed(4) + ', ' + (o.scale.z*sceneScale).toFixed(4) + ')');
+          if (o.scale.x !== 1 || o.scale.y !== 1 || o.scale.z !== 1 || sceneScale !== 1) lines.push('EMRAPI.Scene:SetScale(_objs[' + n + '], ' + (o.scale.x * sceneScale).toFixed(4) + ', ' + (o.scale.y * sceneScale).toFixed(4) + ', ' + (o.scale.z * sceneScale).toFixed(4) + ')');
           for (let pi = 0; pi < o.parts.length; pi++) {
-            const part = o.parts[pi]; const pk = esc(o.name + '_p' + (pi + 1));
+            const part = o.parts[pi];
+            const pk = esc(o.name + '_p' + (pi + 1));
             lines.push('_objs[' + pk + '] = EMRAPI.Scene:CreatePrimitive(' + esc(part.type) + ')');
             lines.push('EMRAPI.Scene:SetParent(_objs[' + pk + '], _objs[' + n + '])');
             lines.push('EMRAPI.Scene:SetPosition(_objs[' + pk + '], ' + part.pos.x.toFixed(4) + ', ' + part.pos.y.toFixed(4) + ', ' + part.pos.z.toFixed(4) + ')');
+            // ← ВОТ ЭТА СТРОКА ДОБАВЛЕНА
+            if (part.rot && (part.rot.x || part.rot.y || part.rot.z)) {
+              lines.push('EMRAPI.Scene:SetRotation(_objs[' + pk + '], ' + part.rot.x.toFixed(2) + ', ' + part.rot.y.toFixed(2) + ', ' + part.rot.z.toFixed(2) + ')');
+            }
             if (part.scale.x !== 1 || part.scale.y !== 1 || part.scale.z !== 1) lines.push('EMRAPI.Scene:SetScale(_objs[' + pk + '], ' + part.scale.x.toFixed(4) + ', ' + part.scale.y.toFixed(4) + ', ' + part.scale.z.toFixed(4) + ')');
             lines.push('EMRAPI.Scene:SetColor(_objs[' + pk + '], ' + part.color.r.toFixed(3) + ', ' + part.color.g.toFixed(3) + ', ' + part.color.b.toFixed(3) + ', ' + part.color.a.toFixed(3) + ')');
           }
@@ -1684,7 +1689,7 @@
         lines.push('_objs[' + n + '] = EMRAPI.Scene:CreatePrimitive(' + esc(o.type) + ')');
         lines.push('EMRAPI.Scene:SetPosition(_objs[' + n + '], ' + o.pos.x.toFixed(4) + ', ' + o.pos.y.toFixed(4) + ', ' + o.pos.z.toFixed(4) + ')');
         if (o.rot.x || o.rot.y || o.rot.z) lines.push('EMRAPI.Scene:SetRotation(_objs[' + n + '], ' + o.rot.x.toFixed(2) + ', ' + o.rot.y.toFixed(2) + ', ' + o.rot.z.toFixed(2) + ')');
-        if (o.scale.x !== 1 || o.scale.y !== 1 || o.scale.z !== 1 || sceneScale !== 1) lines.push('EMRAPI.Scene:SetScale(_objs[' + n + '], ' + (o.scale.x*sceneScale).toFixed(4) + ', ' + (o.scale.y*sceneScale).toFixed(4) + ', ' + (o.scale.z*sceneScale).toFixed(4) + ')');
+        if (o.scale.x !== 1 || o.scale.y !== 1 || o.scale.z !== 1 || sceneScale !== 1) lines.push('EMRAPI.Scene:SetScale(_objs[' + n + '], ' + (o.scale.x * sceneScale).toFixed(4) + ', ' + (o.scale.y * sceneScale).toFixed(4) + ', ' + (o.scale.z * sceneScale).toFixed(4) + ')');
         lines.push('EMRAPI.Scene:SetColor(_objs[' + n + '], ' + o.color.r.toFixed(3) + ', ' + o.color.g.toFixed(3) + ', ' + o.color.b.toFixed(3) + ', ' + o.color.a.toFixed(3) + ')');
         if (o.collider.type !== 'none') {
           if (o.collider.type === 'sphere' || o.collider.type === 'capsule') lines.push('_col[' + n + '] = EMRAPI.Scene:AddSphereCollider(_objs[' + n + '], ' + o.collider.radius.toFixed(4) + ')');
