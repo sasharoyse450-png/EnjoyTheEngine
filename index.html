@@ -3348,19 +3348,11 @@ window.addEventListener('keydown', function(e) {
 
 console.log('[KEYBOARD] Патч v2 активен. Проверь консоль: должен быть [KEY] при Ctrl+C.');
 })();
-  <!-- ПАТЧ: рабочее копирование 3D-объектов v2 -->
+  
+<!-- ПАТЧ: копирование 3D-объектов с кнопками -->
+<script>
 (function() {
 'use strict';
-
-// Снимаем фокус с Blockly при клике по 3D-canvas
-document.addEventListener('mousedown', function(e) {
-  const canvas = document.querySelector('#viewport canvas');
-  if (canvas && (e.target === canvas || canvas.contains(e.target))) {
-    if (document.activeElement && document.activeElement.blur) {
-      document.activeElement.blur();
-    }
-  }
-}, true);
 
 function getState() { return window.__emrState; }
 
@@ -3399,12 +3391,16 @@ function doCopy() {
   if (!objs.length) return false;
   window.__emrClipboard = objs.map(snapshot);
   console.log('[COPY]', window.__emrClipboard.length, '→', objs.map(o => o.name).join(', '));
+  updateButtons();
   return true;
 }
 
 function doPaste() {
   const State = getState();
-  if (!State || !window.__emrClipboard || !window.__emrClipboard.length) { console.log('[PASTE] буфер пуст'); return false; }
+  if (!State || !window.__emrClipboard || !window.__emrClipboard.length) {
+    console.log('[PASTE] буфер пуст — скопируй что-нибудь первым');
+    return false;
+  }
   const created = [];
   for (const s of window.__emrClipboard) {
     const o = window.__emrCreateObject(s.type, {
@@ -3428,6 +3424,47 @@ function doPaste() {
   return created.length > 0;
 }
 
+// ============ КНОПКИ ============
+function mkBtn(txt, title, fn) {
+  const b = document.createElement('button');
+  b.textContent = txt;
+  b.title = title;
+  b.style.cssText = 'background:transparent;color:#ddd;border:none;padding:6px 10px;border-radius:3px;cursor:pointer;font-size:11px';
+  b.onmouseenter = () => { b.style.background = '#3a3a3d'; };
+  b.onmouseleave = () => { b.style.background = 'transparent'; };
+  b.onclick = fn;
+  return b;
+}
+
+let _copyBtn, _pasteBtn, _dupBtn;
+function updateButtons() {
+  if (!_pasteBtn) return;
+  const hasBuf = !!(window.__emrClipboard && window.__emrClipboard.length);
+  _pasteBtn.style.opacity = hasBuf ? '1' : '0.4';
+  _pasteBtn.title = hasBuf ? 'Вставить (' + window.__emrClipboard.length + ')' : 'Вставить (буфер пуст)';
+}
+
+function installButtons() {
+  const tb = document.getElementById('viewToolbar');
+  if (!tb) { setTimeout(installButtons, 300); return; }
+  if (document.getElementById('emrCopyBtn')) return;
+
+  _copyBtn = mkBtn('📋', 'Копировать (Ctrl+C)', () => doCopy());
+  _copyBtn.id = 'emrCopyBtn';
+
+  _pasteBtn = mkBtn('📥', 'Вставить (Ctrl+V)', () => doPaste());
+  _pasteBtn.id = 'emrPasteBtn';
+
+  _dupBtn = mkBtn('📑', 'Дублировать (Ctrl+D)', () => { if (doCopy()) doPaste(); });
+  _dupBtn.id = 'emrDupBtn';
+
+  tb.appendChild(_copyBtn);
+  tb.appendChild(_pasteBtn);
+  tb.appendChild(_dupBtn);
+  updateButtons();
+}
+
+// ============ Ctrl+C/V/D ============
 window.addEventListener('keydown', function(e) {
   if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
   const tag = e.target && e.target.tagName;
@@ -3439,27 +3476,40 @@ window.addEventListener('keydown', function(e) {
 
   const active = document.activeElement;
   const inBlocks = active && active.closest && active.closest('#blocklyDiv');
-
-  console.log('[KEY] Ctrl+' + k, 'inBlocks:', !!inBlocks, 'active:', active && active.tagName);
+  console.log('[KEY] Ctrl+' + k, 'inBlocks:', !!inBlocks);
 
   if (inBlocks) return;
 
   const State = getState();
-  const has3D = State && State.selectedIds && State.selectedIds.length > 0;
-  if (!has3D) { console.log('[KEY] 3D-объект не выделен'); return; }
+  if (!State || !State.selectedIds.length) {
+    console.log('[KEY] нет выделения — кликни по объекту в сцене');
+    return;
+  }
 
-  if (k === 'c') {
-    if (doCopy()) { e.preventDefault(); e.stopPropagation(); }
-  } else if (k === 'v') {
-    if (doPaste()) { e.preventDefault(); e.stopPropagation(); }
-  } else if (k === 'd') {
-    if (doCopy()) { doPaste(); e.preventDefault(); e.stopPropagation(); }
+  if (k === 'c') { if (doCopy()) { e.preventDefault(); e.stopPropagation(); } }
+  else if (k === 'v') { if (doPaste()) { e.preventDefault(); e.stopPropagation(); } }
+  else if (k === 'd') { if (doCopy()) { doPaste(); e.preventDefault(); e.stopPropagation(); } }
+}, true);
+
+// Снимаем фокус с Blockly при клике по сцене
+document.addEventListener('mousedown', function(e) {
+  const canvas = document.querySelector('#viewport canvas');
+  if (canvas && (e.target === canvas || canvas.contains(e.target))) {
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
   }
 }, true);
 
-console.log('[KEYBOARD] Патч v2 активен.');
+// Ставим кнопки после загрузки
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', installButtons);
+} else {
+  installButtons();
+}
+setTimeout(installButtons, 500);
+setTimeout(installButtons, 1500);
+
+console.log('[COPY-BUTTONS] Готово. Кнопки 📋 📥 📑 в панели слева сверху.');
 })();
-</script>
 </script>
 </body>
 </html>
