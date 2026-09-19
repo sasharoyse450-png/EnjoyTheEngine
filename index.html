@@ -494,7 +494,7 @@
     objects: [], selectedId: null, selectedIds: [], playing: false, paused: false,
     project: { id:'com.user.myapp', name:'My App', version:'1.0.0', author:'User',
       description:'Made with EnjoyTheEngine', display:'scene',
-      windowWidth:500, windowHeight:400, floorY:-1.6, sceneScale:0.1 },
+      windowWidth:500, windowHeight:400, floorY:-0.16, sceneScale:1 },
     transformMode:'translate', snap:false, showColliders:false, showCamera:true,
     flyMode: false,
   };
@@ -511,12 +511,12 @@
     fragmentShader:'uniform vec3 topColor; uniform vec3 midColor; uniform vec3 bottomColor; varying vec3 vW; void main(){ float h=normalize(vW).y; vec3 c; if(h>0.0) c=mix(midColor,topColor,pow(h,0.7)); else c=mix(midColor,bottomColor,pow(-h,0.5)); gl_FragColor=vec4(c,1.0); }',
     side:THREE.BackSide, depthWrite:false
   });
-  const skyDome = new THREE.Mesh(new THREE.SphereGeometry(400, 32, 16), skyMat);
+  const skyDome = new THREE.Mesh(new THREE.SphereGeometry(40, 32, 16), skyMat);
   scene.add(skyDome);
-  scene.fog = new THREE.Fog(0xb8c8dc, 30, 120);
+  scene.fog = new THREE.Fog(0xb8c8dc, 3, 12);
 
   const camera = new THREE.PerspectiveCamera(55, 1, 0.01, 1000);
-  camera.position.set(3, 2.4, 4.5);
+  camera.position.set(0.3, 0.24, 0.45);
   camera.lookAt(0, 0.5, 0);
   window.__emrCamera = camera;
 
@@ -528,31 +528,31 @@
   window.__emrRenderer = renderer;
 
   const orbit = new OrbitControls(camera, renderer.domElement);
-  orbit.target.set(0, 0.5, 0);
+  orbit.target.set(0, 0.05, 0);
   orbit.enableDamping = true; orbit.dampingFactor = 0.08;
   orbit.maxPolarAngle = Math.PI * 0.98; orbit.minPolarAngle = 0.02;
-  orbit.minDistance = 0.3; orbit.maxDistance = 80;
+  orbit.minDistance = 0.03; orbit.maxDistance = 8;
   orbit.update();
 
   scene.add(new THREE.HemisphereLight(0xbdd6f0, 0x5a4a3a, 0.75));
   const sun = new THREE.DirectionalLight(0xfff4e0, 1.6);
-  sun.position.set(6, 10, 5); sun.castShadow = true;
+  sun.position.set(0.6, 1.0, 0.5); sun.castShadow = true;
   sun.shadow.mapSize.set(1024, 1024);
-  sun.shadow.camera.left = -10; sun.shadow.camera.right = 10;
-  sun.shadow.camera.top = 10; sun.shadow.camera.bottom = -10;
+  sun.shadow.camera.left = -1; sun.shadow.camera.right = 1;
+  sun.shadow.camera.top = 1; sun.shadow.camera.bottom = -1;
   sun.shadow.camera.near = 0.5; sun.shadow.camera.far = 30;
   scene.add(sun);
   const fill = new THREE.DirectionalLight(0xa8c4e0, 0.35);
-  fill.position.set(-5, 3, -6); scene.add(fill);
+  fill.position.set(-0.5, 0.3, -0.6); scene.add(fill);
 
-  const gridFine = new THREE.GridHelper(60, 60, 0x808a94, 0x808a94);
+  const gridFine = new THREE.GridHelper(6, 60, 0x808a94, 0x808a94);
   gridFine.material.transparent = true; gridFine.material.opacity = 0.22; gridFine.material.depthWrite = false;
   scene.add(gridFine);
-  const gridCoarse = new THREE.GridHelper(60, 6, 0xc0c8d0, 0xc0c8d0);
+  const gridCoarse = new THREE.GridHelper(6, 6, 0xc0c8d0, 0xc0c8d0);
   gridCoarse.material.transparent = true; gridCoarse.material.opacity = 0.55; gridCoarse.material.depthWrite = false;
   scene.add(gridCoarse);
-  const axesHelper = new THREE.AxesHelper(1.5); scene.add(axesHelper);
-  const shadowPlane = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.ShadowMaterial({ opacity: 0.15 }));
+  const axesHelper = new THREE.AxesHelper(0.15); scene.add(axesHelper);
+  const shadowPlane = new THREE.Mesh(new THREE.PlaneGeometry(6, 6), new THREE.ShadowMaterial({ opacity: 0.15 }));
   shadowPlane.rotation.x = -Math.PI / 2; shadowPlane.position.y = -0.001;
   shadowPlane.receiveShadow = true; scene.add(shadowPlane);
 
@@ -598,7 +598,8 @@
     const lineGeo = new THREE.BufferGeometry();
     lineGeo.setAttribute('position', new THREE.Float32BufferAttribute([0,-1.6,0, 0,0,0], 3));
     group.add(new THREE.Line(lineGeo, new THREE.LineBasicMaterial({ color: 0x66ccff, transparent: true, opacity: 0.3 })));
-    group.position.set(0, 1.6, 0);
+    group.position.set(0, 0.16, 0);
+    group.scale.set(0.1, 0.1, 0.1);
     group.traverse(o => { o.raycast = () => {}; });
     return group;
   }
@@ -621,6 +622,7 @@
   let tControls = null;
   try {
     tControls = new TransformControls(camera, renderer.domElement);
+    tControls.size = 0.1;
     tControls.addEventListener('dragging-changed', e => {
       orbit.enabled = !e.value && !State.flyMode;
       if (e.value) beginTransform(); else endTransform();
@@ -645,7 +647,7 @@
   window.__emrTControls = tControls;
 
   // ---- FLY CAMERA ----
-  let flyYaw = 0, flyPitch = 0, flySpeed = 3.0, flyDragging = false, flyLastX = 0, flyLastY = 0;
+  let flyYaw = 0, flyPitch = 0, flySpeed = 0.3, flyDragging = false, flyLastX = 0, flyLastY = 0;
   const flyKeys = {};
   function updateHint() {
     const h = document.getElementById('hint'); if (!h) return;
@@ -871,9 +873,13 @@
     const mat = new THREE.MeshStandardMaterial({ color: new THREE.Color(color.r, color.g, color.b), transparent: color.a < 1, opacity: color.a, roughness: 0.55, metalness: 0.05 });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.castShadow = true; mesh.receiveShadow = true; mesh.userData.objId = id;
-    mesh.position.set((opts.pos && opts.pos.x) || 0, (opts.pos && opts.pos.y) != null ? opts.pos.y : 0.5, (opts.pos && opts.pos.z) || 2);
+    mesh.position.set((opts.pos && opts.pos.x) || 0, (opts.pos && opts.pos.y) != null ? opts.pos.y : 0.05, (opts.pos && opts.pos.z) || 0.3);
     mesh.rotation.set(THREE.MathUtils.degToRad((opts.rot && opts.rot.x) || 0), THREE.MathUtils.degToRad((opts.rot && opts.rot.y) || 0), THREE.MathUtils.degToRad((opts.rot && opts.rot.z) || 0));
-    mesh.scale.set((opts.scale && opts.scale.x) || 1, (opts.scale && opts.scale.y) || 1, (opts.scale && opts.scale.z) || 1);
+    mesh.scale.set(
+      (opts.scale && opts.scale.x) || 0.1,
+      (opts.scale && opts.scale.y) || 0.1,
+      (opts.scale && opts.scale.z) || 0.1
+    );
     scene.add(mesh);
     const obj = { id, name, type,
       pos: { x: mesh.position.x, y: mesh.position.y, z: mesh.position.z },
@@ -886,7 +892,7 @@
       runtime: !!opts.runtime, isModel: !!opts.isModel, modelPath: opts.modelPath };
     if (opts.collider == null) {
       obj.collider.type = (type === 'sphere' || type === 'capsule') ? 'sphere' : (type === 'plane' ? 'none' : 'box');
-      obj.collider.radius = 0.5;
+      obj.collider.radius = 0.05;
     }
     State.objects.push(obj); renderTree(); select(obj.id); return obj;
   }
@@ -1297,7 +1303,7 @@
     frag.appendChild(mk('Ширина окна', 'windowWidth', { type: 'number' }));
     frag.appendChild(mk('Высота окна', 'windowHeight', { type: 'number' }));
     const floorWrap = document.createElement('div'); floorWrap.className = 'slider-wrap';
-    const floorSlider = document.createElement('input'); floorSlider.type = 'range'; floorSlider.min = -5; floorSlider.max = 1; floorSlider.step = 0.05; floorSlider.value = p.floorY || 0;
+    const floorSlider = document.createElement('input'); floorSlider.type = 'range'; floorSlider.min = -0.5; floorSlider.max = 0.1; floorSlider.step = 0.005; floorSlider.value = p.floorY || 0;
     const floorVal = document.createElement('span'); floorVal.className = 'val'; floorVal.textContent = (p.floorY || 0).toFixed(2);
     floorSlider.oninput = () => { p.floorY = parseFloat(floorSlider.value); floorVal.textContent = p.floorY.toFixed(2); applyFloorY(); };
     floorWrap.appendChild(floorSlider); floorWrap.appendChild(floorVal);
@@ -1389,7 +1395,7 @@
   defineBlock('emr_call_group', function() { this.appendDummyInput().appendField('▶ выполнить группу').appendField(new Blockly.FieldTextInput('моя группа'), 'NAME'); this.setPreviousStatement(true); this.setNextStatement(true); this.setColour('#546e7a'); });
 
   defineBlock('emr_hand_visible', function() { this.appendDummyInput().appendField('👋 рука').appendField(new Blockly.FieldDropdown(HAND_OPTS), 'HAND').appendField(new Blockly.FieldDropdown([['показать','show'],['скрыть','hide']]), 'MODE'); this.setPreviousStatement(true); this.setNextStatement(true); this.setColour('#8e44ad'); });
-  defineBlock('emr_hand_color', function() { this.appendDummyInput().appendField('🎨 покрасить руку').appendField(new Blockly.FieldDropdown(HAND_OPTS), 'HAND'); this.appendValueInput('R').setCheck('Number').appendField('к'); this.appendValueInput('G').setCheck('Number').appendField('з'); this.appendValueInput('B').setCheck('Number').appendField('с'); this.setInputsInline(true); this.setPreviousStatement(true); this.setNextStatement(true); this.setColour('#8e44ad'); });
+  defineBlock('emr_hand_color', function() { this.appendDummyInput().appendField('🎨 покрасить руку').appendField(new Blockly.FieldDropdown(HAND_OPTS), 'HAND'); this.appendValueInput('R').setCheck('Number').appendField('к'); this.appendValueInput('G').setCheck('Number').appendField('з'); this.appendValueInput('B').setCheck('Number').appendField('с'); this.appendValueInput('A').setCheck('Number').appendField('α'); this.setInputsInline(true); this.setPreviousStatement(true); this.setNextStatement(true); this.setColour('#8e44ad'); });
   defineBlock('emr_hand_alpha', function() { this.appendDummyInput().appendField('👻 прозрачность руки').appendField(new Blockly.FieldDropdown(HAND_OPTS), 'HAND').appendField('='); this.appendValueInput('V').setCheck('Number'); this.setInputsInline(true); this.setPreviousStatement(true); this.setNextStatement(true); this.setColour('#8e44ad'); });
   defineBlock('emr_hand_reset', function() { this.appendDummyInput().appendField('🔄 сбросить руку').appendField(new Blockly.FieldDropdown(HAND_OPTS), 'HAND'); this.setPreviousStatement(true); this.setNextStatement(true); this.setColour('#8e44ad'); });
   defineBlock('emr_hand_tracked', function() { this.appendDummyInput().appendField('✋ рука').appendField(new Blockly.FieldDropdown(HAND_OPTS), 'HAND').appendField('отслеживается'); this.setOutput(true, 'Boolean'); this.setColour('#8e44ad'); });
@@ -1411,7 +1417,19 @@
   defineBlock('emr_set_pos', function() { this.appendDummyInput().appendField('📦 переместить').appendField(new Blockly.FieldDropdown(objectDropdownOptionsAll), 'OBJ').appendField('в'); this.appendValueInput('X').setCheck('Number').appendField('x'); this.appendValueInput('Y').setCheck('Number').appendField('y'); this.appendValueInput('Z').setCheck('Number').appendField('z'); this.setInputsInline(true); this.setPreviousStatement(true); this.setNextStatement(true); this.setColour('#2980b9'); });
   defineBlock('emr_set_scale', function() { this.appendDummyInput().appendField('📐 масштаб').appendField(new Blockly.FieldDropdown(objectDropdownOptionsAll), 'OBJ'); this.appendValueInput('X').setCheck('Number').appendField('x'); this.appendValueInput('Y').setCheck('Number').appendField('y'); this.appendValueInput('Z').setCheck('Number').appendField('z'); this.setInputsInline(true); this.setPreviousStatement(true); this.setNextStatement(true); this.setColour('#2980b9'); });
   defineBlock('emr_set_rotation', function() { this.appendDummyInput().appendField('🔄 поворот').appendField(new Blockly.FieldDropdown(objectDropdownOptionsAll), 'OBJ'); this.appendValueInput('X').setCheck('Number').appendField('x°'); this.appendValueInput('Y').setCheck('Number').appendField('y°'); this.appendValueInput('Z').setCheck('Number').appendField('z°'); this.setInputsInline(true); this.setPreviousStatement(true); this.setNextStatement(true); this.setColour('#2980b9'); });
-  defineBlock('emr_set_color', function() { this.appendDummyInput().appendField('🎨 цвет').appendField(new Blockly.FieldDropdown(objectDropdownOptionsAll), 'OBJ'); this.appendValueInput('R').setCheck('Number').appendField('к'); this.appendValueInput('G').setCheck('Number').appendField('з'); this.appendValueInput('B').setCheck('Number').appendField('с'); this.setInputsInline(true); this.setPreviousStatement(true); this.setNextStatement(true); this.setColour('#2980b9'); });
+  defineBlock('emr_set_alpha', function() {
+    this.appendDummyInput().appendField('👻 прозрачность').appendField(new Blockly.FieldDropdown(objectDropdownOptionsAll), 'OBJ');
+    this.appendValueInput('A').setCheck('Number').appendField('α');
+    this.setInputsInline(true); this.setPreviousStatement(true); this.setNextStatement(true); this.setColour('#2980b9');
+  });
+  defineBlock('emr_set_color', function() {
+    this.appendDummyInput().appendField('🎨 цвет').appendField(new Blockly.FieldDropdown(objectDropdownOptionsAll), 'OBJ');
+    this.appendValueInput('R').setCheck('Number').appendField('к');
+    this.appendValueInput('G').setCheck('Number').appendField('з');
+    this.appendValueInput('B').setCheck('Number').appendField('с');
+    this.appendValueInput('A').setCheck('Number').appendField('α');
+    this.setInputsInline(true); this.setPreviousStatement(true); this.setNextStatement(true); this.setColour('#2980b9');
+  });
   defineBlock('emr_obj_coord', function() { this.appendDummyInput().appendField('📌 позиция').appendField(new Blockly.FieldDropdown(objectDropdownOptionsAll), 'OBJ').appendField('ось').appendField(new Blockly.FieldDropdown(AXIS_OPTS), 'AXIS'); this.setOutput(true, 'Number'); this.setColour('#2980b9'); });
   defineBlock('emr_destroy_obj', function() { this.appendDummyInput().appendField('💥 удалить').appendField(new Blockly.FieldDropdown(objectDropdownOptionsAll), 'OBJ'); this.setPreviousStatement(true); this.setNextStatement(true); this.setColour('#2980b9'); });
 
@@ -1496,7 +1514,8 @@
     contents: [
       { kind: 'category', name: '🚀 События', colour: '#c0392b', contents: [BB('emr_on_start'), BB('emr_on_update'), BB('emr_on_destroy'), BB('emr_every_sec', { inputs: { TIME: SH_NUM(0.1) }}), BB('emr_after_sec', { inputs: { TIME: SH_NUM(1) }})]},
       { kind: 'category', name: '✋ Руки / Голова', colour: '#8e44ad', contents: [BB('emr_hand_tracked'), BB('emr_hand_grabbing'), BB('emr_hand_pinch'), BB('emr_hand_gesture'), BB('emr_hand_coord'), BB('emr_head_coord'), { kind: 'sep' }, BB('emr_hand_touching', { inputs: { DIST: SH_NUM(0.15) }}), BB('emr_hand_obj_distance'), BB('emr_get_pinch_strength'), { kind: 'sep' }, BB('emr_hand_visible'), BB('emr_hand_color', { inputs: { R: SH_NUM(1), G: SH_NUM(0), B: SH_NUM(0) }}), BB('emr_hand_alpha', { inputs: { V: SH_NUM(0.5) }}), BB('emr_hand_reset'), { kind: 'sep' }, BB('emr_on_gesture')]},
-      { kind: 'category', name: '📦 Объекты', colour: '#2980b9', contents: [BB('emr_spawn_at', { inputs: { X: SH_NUM(0), Y: SH_NUM(1), Z: SH_NUM(2) }}), BB('emr_spawn_in_hand'), BB('emr_destroy_delayed', { inputs: { TIME: SH_NUM(3) }}), { kind: 'sep' }, BB('emr_set_pos', { inputs: { X: SH_NUM(0), Y: SH_NUM(1), Z: SH_NUM(2) }}), BB('emr_set_scale', { inputs: { X: SH_NUM(0.1), Y: SH_NUM(0.1), Z: SH_NUM(0.1) }}), BB('emr_set_rotation', { inputs: { X: SH_NUM(0), Y: SH_NUM(0), Z: SH_NUM(0) }}), BB('emr_set_color', { inputs: { R: SH_NUM(1), G: SH_NUM(0.5), B: SH_NUM(0) }}), BB('emr_set_texture', { inputs: { PATH: SH_TXT('images/cat.png') }}), BB('emr_obj_coord'), BB('emr_destroy_obj'), { kind: 'sep' }, BB('emr_set_parent'), BB('emr_clear_parent')]},
+      { kind: 'category', name: '📦 Объекты', colour: '#2980b9', contents: [BB('emr_spawn_at', { inputs: { X: SH_NUM(0), Y: SH_NUM(1), Z: SH_NUM(2) }}), BB('emr_spawn_in_hand'), BB('emr_destroy_delayed', { inputs: { TIME: SH_NUM(3) }}), { kind: 'sep' }, BB('emr_set_pos', { inputs: { X: SH_NUM(0), Y: SH_NUM(1), Z: SH_NUM(2) }}), BB('emr_set_scale', { inputs: { X: SH_NUM(0.1), Y: SH_NUM(0.1), Z: SH_NUM(0.1) }}), BB('emr_set_rotation', { inputs: { X: SH_NUM(0), Y: SH_NUM(0), Z: SH_NUM(0) }}), BB('emr_set_color', { inputs: { R: SH_NUM(1), G: SH_NUM(0.5), B: SH_NUM(0), A: SH_NUM(1) }}),
+BB('emr_set_alpha', { inputs: { A: SH_NUM(0.5) }}), BB('emr_set_texture', { inputs: { PATH: SH_TXT('images/cat.png') }}), BB('emr_obj_coord'), BB('emr_destroy_obj'), { kind: 'sep' }, BB('emr_set_parent'), BB('emr_clear_parent')]},
       { kind: 'category', name: '✨ Tween', colour: '#0d8a8a', contents: [
         BB('emr_tween_move', { inputs: { X: SH_NUM(0), Y: SH_NUM(1), Z: SH_NUM(2), DUR: SH_NUM(0.5) }}),
         BB('emr_tween_rotate', { inputs: { X: SH_NUM(0), Y: SH_NUM(180), Z: SH_NUM(0), DUR: SH_NUM(0.5) }}),
@@ -1523,7 +1542,7 @@
       emr_hand_tracked:'input', emr_hand_grabbing:'input', emr_hand_pinch:'input', emr_hand_gesture:'input',
       emr_hand_coord:'input', emr_head_coord:'input', emr_hand_touching:'input,scene',
       emr_hand_obj_distance:'input,scene', emr_get_pinch_strength:'input',
-      emr_set_pos:'scene', emr_set_scale:'scene', emr_set_rotation:'scene', emr_set_color:'scene',
+      emr_set_pos:'scene', emr_set_scale:'scene', emr_set_rotation:'scene', emr_set_color:'scene', emr_set_alpha:'scene',
       emr_obj_coord:'scene', emr_destroy_obj:'scene',
       emr_spawn_at:'scene', emr_spawn_in_hand:'scene,input', emr_destroy_delayed:'scene',
       emr_set_parent:'scene', emr_clear_parent:'scene', emr_set_texture:'scene',
@@ -1581,7 +1600,13 @@
     G.emr_set_pos = b => { markPerm(b.type); const objName = esc(b.getFieldValue('OBJ')); return 'if _rb[' + objName + '] and not _rb[' + objName + '].isKinematic then _rb[' + objName + '].isKinematic = true end\nEMRAPI.Scene:SetPosition(_obj(' + objName + '), ' + val(b,'X') + ', ' + val(b,'Y') + ', ' + val(b,'Z') + ')'; };
     G.emr_set_scale = b => { markPerm(b.type); return 'EMRAPI.Scene:SetScale(_obj(' + esc(b.getFieldValue('OBJ')) + '), ' + val(b,'X') + ', ' + val(b,'Y') + ', ' + val(b,'Z') + ')'; };
     G.emr_set_rotation = b => { markPerm(b.type); return 'EMRAPI.Scene:SetRotation(_obj(' + esc(b.getFieldValue('OBJ')) + '), ' + val(b,'X') + ', ' + val(b,'Y') + ', ' + val(b,'Z') + ')'; };
-    G.emr_set_color = b => { markPerm(b.type); return 'EMRAPI.Scene:SetColor(_obj(' + esc(b.getFieldValue('OBJ')) + '), ' + val(b,'R') + ', ' + val(b,'G') + ', ' + val(b,'B') + ', 1.0)'; };
+    G.emr_set_alpha = b => {
+      markPerm(b.type);
+      const n = esc(b.getFieldValue('OBJ'));
+      const a = val(b, 'A');
+      return 'do\n' + '    local _c = _colors[' + n + ']\n' + '    if _c then EMRAPI.Scene:SetColor(_obj(' + n + '), _c.r, _c.g, _c.b, ' + a + ') end\n' + 'end';
+    };
+    G.emr_set_color = b => { markPerm(b.type); return 'EMRAPI.Scene:SetColor(_obj(' + esc(b.getFieldValue('OBJ')) + '), ' + val(b,'R') + ', ' + val(b,'G') + ', ' + val(b,'B') + ', ' + val(b,'A') + ')'; };
     G.emr_obj_coord = b => { markPerm(b.type); return 'EMRAPI.Scene:GetPosition' + b.getFieldValue('AXIS') + '(_obj(' + esc(b.getFieldValue('OBJ')) + '))'; };
     G.emr_destroy_obj = b => { markPerm(b.type); const n = esc(b.getFieldValue('OBJ')); return 'if _obj(' + n + ') then EMRAPI.Scene:Destroy(_obj(' + n + ')); _objs[' + n + '] = nil end'; };
     G.emr_attach_smooth = b => { markPerm(b.type); return 'EMRAPI.Scene:AttachToHandSmooth(_obj(' + esc(b.getFieldValue('OBJ')) + '), ' + esc(b.getFieldValue('HAND')) + ', ' + esc(b.getFieldValue('POINT')) + ', ' + val(b,'PLERP') + ', ' + val(b,'RLERP') + ')'; };
@@ -1644,7 +1669,7 @@
 
     function emitSceneSetup(objects) {
       const lines = [];
-      const sceneScale = (State.project && State.project.sceneScale) || 1;
+      const sceneScale = 1;
       for (const o of objects) {
         const n = esc(o.name);
         if (o.runtime) {
@@ -1718,7 +1743,17 @@
           else otherCode.push(c);
         }
         const sceneLines = emitSceneSetup(objects);
-        const sceneScale = (project && project.sceneScale) || 1;
+        const sceneScale = 1;
+        // Конфиг цветов — для блока emr_set_alpha
+        const colorCfgLines = ['local _colors = {'];
+        for (const o of objects) {
+          if (o.type === 'merged') continue;
+          const c = o.color || { r: 1, g: 1, b: 1 };
+          colorCfgLines.push('    [' + esc(o.name) + '] = { r = ' + c.r.toFixed(3) + ', g = ' + c.g.toFixed(3) + ', b = ' + c.b.toFixed(3) + ' },');
+        }
+        colorCfgLines.push('}');
+        const colorCfg = colorCfgLines.join('\n');
+
         const spawnCfgLines = ['local _spawnCfg = {'];
         for (const o of objects) {
           if (!o.runtime || o.isModel) continue;
@@ -1752,6 +1787,7 @@
         const radTable = radLines.join('\n');
         const header = '-- ============================================================\n-- ' + project.name + ' v' + project.version + '\n-- Generated by EnjoyTheEngine\n-- ============================================================\n';
         const helpers = 'local _objs = {}\nlocal _rb   = {}\nlocal _col  = {}\nlocal _collPrev = {}\nlocal function _obj(name) return _objs[name] end\n\n' +
+          colorCfg + '\n\n' +
           spawnCfg + '\n\n' +
           'local function _spawn(name)\n' +
           '    if _objs[name] then return _objs[name] end\n' +
@@ -2139,7 +2175,7 @@
       for (const id of ids) deleteObject(id);
       refreshSelection();
     },
-    resetCamera: function() { camera.position.set(3, 2.4, 4.5); orbit.target.set(0, 0.5, 0); orbit.update(); },
+    resetCamera: function() { camera.position.set(0.3, 0.24, 0.45); orbit.target.set(0, 0.05, 0); orbit.update(); },
     newProject: function() {
       if (State.playing) PhysicsSim.stop();
       if (!confirm('Сбросить проект и все блоки?')) return;
@@ -2148,7 +2184,7 @@
       State.objects = []; State.selectedId = null; State.selectedIds = []; tControls.detach();
       for (const id in colliders) { colliderGroup.remove(colliders[id]); colliders[id].geometry.dispose(); colliders[id].material.dispose(); delete colliders[id]; }
       if (window.workspace) window.workspace.clear();
-      State.project = { id:'com.user.myapp', name:'My App', version:'1.0.0', author:'User', description:'Made with EnjoyTheEngine', display:'scene', windowWidth:500, windowHeight:400, floorY:-1.6, sceneScale:0.1 };
+      State.project = { id:'com.user.myapp', name:'My App', version:'1.0.0', author:'User', description:'Made with EnjoyTheEngine', display:'scene', windowWidth:500, windowHeight:400, floorY:-0.16, sceneScale:1 };
       applyFloorY(); renderTree(); renderInspector();
     },
     clearBlocks: function() { if (window.workspace && confirm('Очистить все блоки?')) window.workspace.clear(); },
@@ -2176,7 +2212,7 @@
         State.objects = []; State.selectedId = null; State.selectedIds = [];
         for (const id in colliders) { colliderGroup.remove(colliders[id]); colliders[id].geometry.dispose(); colliders[id].material.dispose(); delete colliders[id]; }
         tControls.detach();
-        State.project = { id: result.project.id || 'com.user.myapp', name: result.project.name || 'Imported App', version: result.project.version || '1.0.0', author: result.project.author || '', description: result.project.description || '', display: result.project.display || 'scene', windowWidth: result.project.windowWidth || 500, windowHeight: result.project.windowHeight || 400, floorY: (result.project && result.project.floorY != null) ? result.project.floorY : -1.6, sceneScale: (result.project && result.project.sceneScale != null) ? result.project.sceneScale : 1 };
+        State.project = { id: result.project.id || 'com.user.myapp', name: result.project.name || 'Imported App', version: result.project.version || '1.0.0', author: result.project.author || '', description: result.project.description || '', display: result.project.display || 'scene', windowWidth: result.project.windowWidth || 500, windowHeight: result.project.windowHeight || 400, floorY: (result.project && result.project.floorY != null) ? result.project.floorY : -1.6, sceneScale: 1 };
         for (const o of result.objects) createObject(o.type, { name: o.name, pos: o.pos, rot: o.rot, scale: o.scale, color: o.color, physics: o.physics, collider: o.collider, parts: o.parts, bboxSize: o.bboxSize, grabbable: o.grabbable, grabDist: o.grabDist, runtime: o.runtime, isModel: o.isModel, modelPath: o.modelPath });
         if (result.customBlocks && Array.isArray(result.customBlocks)) {
           for (const def of result.customBlocks) { const idx = customBlocks.findIndex(x => x.type === def.type); if (idx >= 0) unregisterCustomBlock(customBlocks[idx].type); }
@@ -2941,11 +2977,17 @@
         console.log('[OPEN] id=' + p.id + ', objects=' + (full.data && full.data.objects ? full.data.objects.length : 0) + ', blocks=' + (full.data && full.data.blocks && full.data.blocks.blocks ? full.data.blocks.blocks.length : 0));
 
         restoreProject(full.data);
+        State.project.sceneScale = 1;
         setCurrentProjectId(p.id);
         lastSavedAt = Date.now();
 
         setTimeout(loadGames, 100);
         gamesModal.style.display = 'none';
+      }));
+
+      row.appendChild(mkB('Опубликовать', 'pub', () => {
+        if (typeof openPublishDialog === 'function') openPublishDialog(p, sb, currentUser);
+        else alert('Функция публикации не загружена. Проверь, что openPublishDialog есть в коде.');
       }));
 
       row.appendChild(mkB('Копия', 'copy', async () => {
